@@ -130,8 +130,11 @@ func nextPermutation(str string, index int) string {
 
 	i := strings.Index(MessageChars, str[index:index+1])
 	if len(MessageChars)-1 > i {
+		// 現在の桁を1増やす
 		return str[:index] + MessageChars[i+1:i+2] + str[index+1:]
 	}
 
+	// 現在の桁を0に戻す
+	str = str[:index] + MessageChars[:1] + str[index+1:]
 	return nextPermutation(str, index+1)
 }
