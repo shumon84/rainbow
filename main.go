@@ -19,7 +19,7 @@ const (
 )
 
 const (
-	MessageChars  = NumberChars+LowerChars+UpperChars+"-_"
+	MessageChars  = NumberChars+LowerChars+UpperChars+"-_" // 英数字 + 記号2文字 = 64文字(2^6)
 	MessageLength = 8
 )
 
