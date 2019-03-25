@@ -65,13 +65,12 @@ func main() {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("HTime : %15d\n", HTime.Nanoseconds())
-	fmt.Printf("RTime : %15d\n", RTime.Nanoseconds())
-	fmt.Printf("NTime : %15d\n", NextPermutationTime.Nanoseconds())
-
 	for runtime.NumGoroutine() > 1 {
 		time.Sleep(time.Second / 2)
 	}
+	fmt.Printf("HTime : %15d\n", HTime.Nanoseconds())
+	fmt.Printf("RTime : %15d\n", RTime.Nanoseconds())
+	fmt.Printf("NTime : %15d\n", NextPermutationTime.Nanoseconds())
 }
 
 // ハッシュ関数
