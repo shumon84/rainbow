@@ -27,16 +27,15 @@ type ReductionFunc func(int, []byte) []byte
 type ChainLength int
 type NumOfChains int
 
-func CreateTable(H HashFunc, R ReductionFunc, t NumOfChains, m ChainLength, fileName string) error {
+func CreateTable(H HashFunc, R ReductionFunc, t NumOfChains, m ChainLength, fileName string) (*os.File,error) {
 	file, err := os.OpenFile(fileName, os.O_CREATE|os.O_WRONLY, 0755)
 	if err != nil {
-		return err
+		return nil,err
 	}
 
 	plain := strings.Repeat(MessageChars[0:1], MessageLength)
 	for i := 0; i < int(t); i++ {
-		beforePlain := plain
-		go func() {
+		go func(beforePlain string) {
 			Rx := []byte(beforePlain)
 			var Hx []byte
 			for j := 0; j < int(m); j++ {
@@ -44,32 +43,36 @@ func CreateTable(H HashFunc, R ReductionFunc, t NumOfChains, m ChainLength, file
 				Rx = R(j, Hx)
 			}
 			fmt.Fprintln(file, beforePlain, string(Rx))
-		}()
+		}(plain)
 		plain = NextPermutation(plain)
 	}
-	return nil
+	return file,nil
 }
 
 func main() {
+	// 第一引数がチェーン数
 	t, err := strconv.Atoi(os.Args[1])
 	if err != nil {
 		log.Fatal(err)
 	}
+	// 第二引数がチェーン長
 	m, err := strconv.Atoi(os.Args[2])
 	if err != nil {
 		log.Fatal(err)
 	}
 	fileName := fmt.Sprintf("rainbow_table_%d_%d.txt", t, m)
-	if err := CreateTable(H, R, NumOfChains(t), ChainLength(m), fileName); err != nil {
+	file,err := CreateTable(H, R, NumOfChains(t), ChainLength(m), fileName)
+	defer file.Close()
+	if err != nil {
 		log.Fatal(err)
 	}
 
 	for runtime.NumGoroutine() > 1 {
 		time.Sleep(time.Second / 2)
 	}
-	fmt.Printf("HTime : %15d\n", HTime.Nanoseconds())
-	fmt.Printf("RTime : %15d\n", RTime.Nanoseconds())
-	fmt.Printf("NTime : %15d\n", NextPermutationTime.Nanoseconds())
+	fmt.Println("ハッシュ関数 :",HTime)
+	fmt.Println("　　還元関数 :",RTime)
+	fmt.Println("順列生成関数 :",NextPermutationTime)
 }
 
 // ハッシュ関数
