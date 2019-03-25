@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"log"
-	"math/rand"
 	"os"
 	"runtime"
 	"strconv"
@@ -94,24 +93,21 @@ func R(times int, digest []byte) []byte {
 	defer func() {
 		RTime += time.Since(startTime)
 	}()
-	sum := uint64(0)
+	seed := uint64(0)
 	for i, v := range digest {
-		sum += uint64(v) << uint64(8*i)
+		seed |= uint64(v) << uint64(i*8)
 	}
-	sum += uint64(times)
-	src := rand.NewSource(int64(sum))
+	seed += uint64(times)
 	availableByte := []byte(MessageChars)
 
-	str := make([]byte, MessageLength+10)
-	for i := 0; i < MessageLength; i += 10 {
-		r := src.Int63()
-		for j:=0;j<10;j++ {
-			index := r & 0x3f
-			str[i+j] = availableByte[int(index)]
-			r = r>>6
-		}
+	str := make([]byte, MessageLength)
+
+	for i:=0;i<8;i++ {
+		index := seed & 0x3f
+		str[i] = availableByte[int(index)]
+		seed = seed >> 8
 	}
-	return str[:MessageLength]
+	return str
 }
 
 var NextPermutationTime = time.Duration(0)
