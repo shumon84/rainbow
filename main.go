@@ -16,11 +16,10 @@ const (
 	NumberChars = "0123456789"
 	LowerChars  = "abcdefghijklmnopqrstuvwxyz"
 	UpperChars  = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	ASCIIChars  = NumberChars + LowerChars + UpperChars
 )
 
 const (
-	MessageChars  = ASCIIChars
+	MessageChars  = NumberChars+LowerChars+UpperChars+"-_"
 	MessageLength = 8
 )
 
@@ -34,15 +33,6 @@ func CreateTable(H HashFunc, R ReductionFunc, t NumOfChains, m ChainLength, file
 	if err != nil {
 		return err
 	}
-	//w := make(chan string, 0)
-	//go func() {
-	//	for str := range w {
-	//		n, err := io.WriteString(file, str)
-	//		if err != nil {
-	//			log.Print(n, err)
-	//		}
-	//	}
-	//}()
 
 	plain := strings.Repeat(MessageChars[0:1], MessageLength)
 	for i := 0; i < int(t); i++ {
@@ -112,31 +102,17 @@ func R(times int, digest []byte) []byte {
 	sum += uint64(times)
 	src := rand.NewSource(int64(sum))
 	availableByte := []byte(MessageChars)
-	availableByteLength := int64(len(availableByte))
 
-	str := make([]byte, MessageLength)
-	for i := 0; i < len(str); i += 8 {
+	str := make([]byte, MessageLength+10)
+	for i := 0; i < MessageLength; i += 10 {
 		r := src.Int63()
-		rx := []int64{
-			(r >> 0) & 0xff,
-			(r >> 8) & 0xff,
-			(r >> 16) & 0xff,
-			(r >> 24) & 0xff,
-			(r >> 32) & 0xff,
-			(r >> 40) & 0xff,
-			(r >> 48) & 0xff,
-			(r >> 56) & 0xff,
+		for j:=0;j<10;j++ {
+			index := r & 0x3f
+			str[i+j] = availableByte[int(index)]
+			r = r>>6
 		}
-		str[i+0] = availableByte[rx[0]%availableByteLength]
-		str[i+1] = availableByte[rx[1]%availableByteLength]
-		str[i+2] = availableByte[rx[2]%availableByteLength]
-		str[i+3] = availableByte[rx[3]%availableByteLength]
-		str[i+4] = availableByte[rx[4]%availableByteLength]
-		str[i+5] = availableByte[rx[5]%availableByteLength]
-		str[i+6] = availableByte[rx[6]%availableByteLength]
-		str[i+7] = availableByte[rx[7]%availableByteLength]
 	}
-	return str
+	return str[:MessageLength]
 }
 
 var NextPermutationTime = time.Duration(0)
