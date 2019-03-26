@@ -2,13 +2,15 @@ package main
 
 import (
 	"crypto/md5"
+	"encoding/hex"
 	"fmt"
-	"io"
 	"log"
+	"math/rand"
 	"os"
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -19,22 +21,28 @@ const (
 )
 
 const (
-	MessageChars  = NumberChars+LowerChars+UpperChars+"-_" // 英数字 + 記号2文字 = 64文字(2^6)
-	MessageLength = 8
+	MessageChars  = NumberChars + LowerChars + UpperChars + "-_" // 英数字 + 記号2文字 = 64文字(2^6)
+	MessageLength = 4
 )
+
+var availableByte = []byte(MessageChars)
 
 type HashFunc func([]byte) []byte
 type ReductionFunc func(int, []byte) []byte
 type ChainLength int
 type NumOfChains int
 
-func CreateTable(H HashFunc, R ReductionFunc, t NumOfChains, m ChainLength, fileName string) (*os.File,error) {
+func CreateTable(H HashFunc, R ReductionFunc, t NumOfChains, m ChainLength, fileName string) (*os.File, error) {
 	file, err := os.OpenFile(fileName, os.O_CREATE|os.O_WRONLY, 0755)
 	if err != nil {
-		return nil,err
+		return nil, err
 	}
+	fmt.Fprintln(file, "package main\n")
+	fmt.Fprintln(file, "var RainbowTable = map[string]string{")
 
 	plain := strings.Repeat(MessageChars[0:1], MessageLength)
+	isExist := map[string]bool{}
+	mutex := sync.Mutex{}
 	for i := 0; i < int(t); i++ {
 		go func(beforePlain string) {
 			Rx := []byte(beforePlain)
@@ -43,11 +51,16 @@ func CreateTable(H HashFunc, R ReductionFunc, t NumOfChains, m ChainLength, file
 				Hx = H(Rx)
 				Rx = R(j, Hx)
 			}
-			fmt.Fprintln(file, beforePlain, string(Rx))
+			mutex.Lock()
+			if !isExist[string(Rx)] {
+				isExist[string(Rx)] = true
+				fmt.Fprintf(file, "	\"%s\": \"%s\",\n", string(Rx), beforePlain)
+			}
+			mutex.Unlock()
 		}(plain)
 		plain = NextPermutation(plain)
 	}
-	return file,nil
+	return file, nil
 }
 
 // ハッシュ関数
@@ -76,14 +89,13 @@ func R(times int, digest []byte) []byte {
 		seed |= uint64(v) << uint64(i*8)
 	}
 	seed += uint64(times)
-	availableByte := []byte(MessageChars)
 
 	str := make([]byte, MessageLength)
 
-	for i:=0;i<8;i++ {
+	for i := 0; i < MessageLength; i++ {
 		index := seed & 0x3f
 		str[i] = availableByte[int(index)]
-		seed = seed >> 8
+		seed = seed >> 6
 	}
 	return str
 }
@@ -125,9 +137,12 @@ func main2() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fileName := fmt.Sprintf("rainbow_table_%d_%d.txt", t, m)
-	file,err := CreateTable(H, R, NumOfChains(t), ChainLength(m), fileName)
-	defer file.Close()
+	fileName := fmt.Sprintf("rainbow_table_%d_%d.go", t, m)
+	file, err := CreateTable(H, R, NumOfChains(t), ChainLength(m), fileName)
+	defer func() {
+		fmt.Fprintln(file, "}")
+		file.Close()
+	}()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -135,21 +150,20 @@ func main2() {
 	for runtime.NumGoroutine() > 1 {
 		time.Sleep(time.Second / 2)
 	}
-	fmt.Println("ハッシュ関数 :",HTime)
-	fmt.Println("　　還元関数 :",RTime)
-	fmt.Println("順列生成関数 :",NextPermutationTime)
+	fmt.Println("ハッシュ関数 :", HTime)
+	fmt.Println("　　還元関数 :", RTime)
+	fmt.Println("順列生成関数 :", NextPermutationTime)
 }
 
-func ReHash(rainbow_table io.Reader,hash []byte)[]byte {
-	const numOfChain= 10000 // チェーン数
-	const chainLength= 3000 // チェーン長
+func ReHash(hash []byte) []byte {
+	startTime := time.Now()
+	const numOfChain = 10000 // チェーン数
+	const chainLength = 3000 // チェーン長
 	//candidateList := [chainLength]string{}
 	candidateList := make(chan string, 4096)
-	//endList := [numOfChain]string{}
 
 	// チェーンの復元
 	fmt.Println("チェーン複合中")
-	numOfEndGoroutine :=0
 	for i := 0; i < chainLength; i++ {
 		go func(i int) {
 			rx := R(chainLength-i-1, hash)
@@ -158,46 +172,59 @@ func ReHash(rainbow_table io.Reader,hash []byte)[]byte {
 				rx = R(chainLength-i+j, beforeHash)
 			}
 			candidateList <- string(rx)
-			numOfEndGoroutine++
 		}(i)
 	}
 	fmt.Println("チェーン複合終了")
 
-	// テーブルの読み込み
-	//fmt.Println("テーブル読み込み中")
-	//scanner := bufio.NewScanner(rainbow_table)
-	//for i := 0; scanner.Scan(); i++ {
-	//	line := scanner.Text()
-	//	endList[i] = line[9:]
-	//	fmt.Println(i,endList[i])
-	//}
-	//fmt.Println("テーブル読み込み終了")
-
-	fmt.Println("待ち合わせ中")
-	for numOfEndGoroutine != chainLength {}
-	fmt.Println("待ち合わせ終了")
-
 	// テーブルとチェーンの照合
 	fmt.Println("テーブルとチェーンの照合中")
-	answer := ""
-	//for i := 0; i < numOfChain; i++ {
-	//	for j := 0; j < chainLength; j++ {
-	//		if RainbowTable[i] == candidateList[j] {
-	//			answer = candidateList[j]
-	//		}
-	//	}
-	//}
-	for candidate := range candidateList{
-		go func(candidate string){
-			for _,rainbow := range RainbowTable{
-				if rainbow == candidate{
-					fmt.Println(candidate)
-				}
-			}
-		}(candidate)
-	}
+	answer := make(chan []byte)
+	startGoroutine := make(chan int, 1024)
+	endGoroutine := make(chan int, 1024)
+	egCount := 0
+	sgCount := 0
 
-	return []byte(answer)
+	////
+	//RainbowTable := map[string]string{} // これは消す
+	////
+	for {
+		select {
+		case candidate := <-candidateList:
+			go func(candidate string) {
+				startGoroutine <- 1
+				defer func() { endGoroutine <- 1 }()
+				head, ok := RainbowTable[candidate]
+				if !ok {
+					return
+				}
+				//fmt.Println(head, "にヒットしました")
+				Rx := []byte(head)
+				hexHash := hex.EncodeToString(hash)
+				var Hx []byte
+				for j := 0; j < chainLength; j++ {
+					Hx = H(Rx)
+					if hex.EncodeToString(Hx) == hexHash {
+						answer <- Rx
+					}
+					Rx = R(j, Hx)
+				}
+			}(candidate)
+		case ans := <-answer:
+			return ans
+		case n := <-startGoroutine:
+			sgCount += n
+		case n := <-endGoroutine:
+			egCount += n
+			//fmt.Println("起動済み:実行済み = ", sgCount, ":", egCount)
+			if sgCount == chainLength && egCount == chainLength {
+				return []byte("Not Found This Hash")
+			}
+		default:
+			if time.Since(startTime) > 6*time.Second {
+				return []byte("Not Found This Hash")
+			}
+		}
+	}
 }
 
 func main() {
@@ -206,8 +233,44 @@ func main() {
 	//if err != nil{
 	//	log.Fatal(err)
 	//}
-	hash := H([]byte("90000000"))
+	//hash := H([]byte("a1000000"))
 
-	plain := ReHash(nil,hash)
-	fmt.Println(string(plain))
+	//fmt.Println(string(R(0, H([]byte("20000000")))))
+
+	//Gen := RandomStringGenerator(MessageChars, MessageLength)
+	//x := 0
+	//for {
+	//	x++
+	//	os.Args[1] = hex.EncodeToString(H([]byte(Gen())))
+	//
+	hash, err := hex.DecodeString(os.Args[1])
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	plain := ReHash(hash)
+	fmt.Print(string(plain))
+	//	if string(plain) != "Not Found This Hash" {
+	//		fmt.Println(string(plain), os.Args[1])
+	//		break
+	//	} else {
+	//		fmt.Println(x, "回目の挑戦失敗 :", os.Args[1])
+	//	}
+	//}
+
+}
+
+// availableStringに含まれる文字のみを使って、
+// 長さlengthのランダムな文字列を生成するジェネレータを返す高階関数
+func RandomStringGenerator(availableString string, length int) func() string {
+	src := rand.NewSource(time.Now().UnixNano())
+	availableRune := []rune(availableString)
+	availableRuneLength := int64(len(availableRune))
+	return func() string {
+		str := make([]rune, length)
+		for i := range str {
+			str[i] = availableRune[src.Int63()%availableRuneLength]
+		}
+		return string(str)
+	}
 }
