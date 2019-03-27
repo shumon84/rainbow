@@ -255,7 +255,6 @@ func main() {
 	//		fmt.Println(x, "回目の挑戦失敗 :", os.Args[1])
 	//	}
 	//}
-
 }
 
 // availableStringに含まれる文字のみを使って、

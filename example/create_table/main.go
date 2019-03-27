@@ -28,13 +28,20 @@ const (
 type HashFunc func([]byte) []byte
 type ReductionFunc func(int, []byte) []byte
 
+// レインボーテーブルのチェーン
+type Chain struct {
+	Length int
+	Head   string
+	Tail   string
+}
+
+var RainbowTable = map[string]string{}
+
 func CreateTable(H HashFunc, R ReductionFunc, numOfChains int, chainLength int, fileName string) (*os.File, error) {
 	file, err := os.OpenFile(fileName, os.O_CREATE|os.O_WRONLY, 0755)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Fprintln(file, "package main\n")
-	fmt.Fprintln(file, "var RainbowTable = map[string]string{")
 
 	plain := strings.Repeat(MessageChars[0:1], MessageLength)
 	isExist := map[string]bool{}
@@ -54,32 +61,18 @@ func CreateTable(H HashFunc, R ReductionFunc, numOfChains int, chainLength int, 
 			}
 			mutex.Unlock()
 		}(plain)
-		plain = NextPermutation(plain)
+		plain = nextPermutation(plain)
 	}
 	return file, nil
 }
 
-// ハッシュ関数
-var HTime = time.Duration(0)
-
-func H(message []byte) []byte {
-	startTime := time.Now()
-	defer func() {
-		HTime += time.Since(startTime)
-	}()
+func Hash(message []byte) []byte {
 	digest := md5.New()
 	digest.Write(message)
 	return digest.Sum(nil)
 }
 
-// 還元関数
-var RTime = time.Duration(0)
-
-func R(times int, digest []byte) []byte {
-	startTime := time.Now()
-	defer func() {
-		RTime += time.Since(startTime)
-	}()
+func Reduction(times int, digest []byte) []byte {
 	seed := uint64(0)
 	for i, v := range digest {
 		seed |= uint64(v) << uint64(i*8)
@@ -87,27 +80,35 @@ func R(times int, digest []byte) []byte {
 	seed += uint64(times)
 
 	str := make([]byte, MessageLength)
+	messageBytes := []byte(MessageChars)
 
 	for i := 0; i < MessageLength; i++ {
 		index := seed & 0x3f
-		str[i] = availableByte[int(index)]
+		str[i] = messageBytes[int(index)]
 		seed = seed >> 6
 	}
 	return str
 }
 
-var NextPermutationTime = time.Duration(0)
-
-func NextPermutation(str string) string {
-	startTime := time.Now()
-	defer func() {
-		NextPermutationTime += time.Since(startTime)
-	}()
-	return nextPermutation(str, 0)
+// MessageCharsに含まれる文字だけを使った文字列のうち、
+// strの次に辞書順最小の文字列を返す
+func nextPermutation(str string) string {
+	revStr := reverseString(str)
+	nextRevStr := next(revStr, 0)
+	nextStr := reverseString(nextRevStr)
+	return nextStr
 }
 
-func nextPermutation(str string, index int) string {
-	if index == MessageLength {
+func reverseString(str string) string {
+	revStr := make([]rune, len(str))
+	for i, v := range str {
+		revStr[len(revStr)+^i] = v
+	}
+	return string(revStr)
+}
+
+func next(str string, index int) string {
+	if index >= MessageLength {
 		return strings.Repeat(MessageChars[0:1], MessageLength)
 	}
 
@@ -119,7 +120,7 @@ func nextPermutation(str string, index int) string {
 
 	// 現在の桁を0に戻す
 	str = str[:index] + MessageChars[:1] + str[index+1:]
-	return nextPermutation(str, index+1)
+	return next(str, index+1)
 }
 
 func main() {
@@ -134,7 +135,7 @@ func main() {
 		log.Fatal(err)
 	}
 	fileName := fmt.Sprintf("rainbow_table_%d_%d.go", t, m)
-	file, err := CreateTable(H, R, NumOfChains(t), ChainLength(m), fileName)
+	file, err := CreateTable(Hash, Reduction, t, m, fileName)
 	defer func() {
 		fmt.Fprintln(file, "}")
 		file.Close()
@@ -146,7 +147,4 @@ func main() {
 	for runtime.NumGoroutine() > 1 {
 		time.Sleep(time.Second / 2)
 	}
-	fmt.Println("ハッシュ関数 :", HTime)
-	fmt.Println("　　還元関数 :", RTime)
-	fmt.Println("順列生成関数 :", NextPermutationTime)
 }
