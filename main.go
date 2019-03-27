@@ -157,9 +157,7 @@ func main2() {
 
 func ReHash(hash []byte) []byte {
 	startTime := time.Now()
-	const numOfChain = 10000 // チェーン数
-	const chainLength = 3000 // チェーン長
-	//candidateList := [chainLength]string{}
+	const chainLength = RainbowTableChainLength // チェーン長
 	candidateList := make(chan string, 4096)
 
 	// チェーンの復元
