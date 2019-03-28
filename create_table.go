@@ -2,10 +2,10 @@ package rainbow
 
 import (
 	"crypto/md5"
-	"fmt"
+	"encoding/gob"
+	"go/token"
 	"os"
 	"strings"
-	"sync"
 )
 
 // 文字種のエイリアス
@@ -31,17 +31,17 @@ type Chain struct {
 	Tail   string
 }
 
-var RainbowTable = map[string]string{}
+var rainbowTable = map[string]Chain{}
 
-func CreateTable(H HashFunc, R ReductionFunc, numOfChains int, chainLength int, fileName string) (*os.File, error) {
+func CreateTable(H HashFunc, R ReductionFunc, numOfChains int, chainLength int, fileName string) error {
 	file, err := os.OpenFile(fileName, os.O_CREATE|os.O_WRONLY, 0755)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	plain := strings.Repeat(MessageChars[0:1], MessageLength)
-	isExist := map[string]bool{}
-	mutex := sync.Mutex{}
+	chainChan := make(chan *Chain, 4096)
+	go AddTable(H, R, chainChan)
 	for i := 0; i < int(numOfChains); i++ {
 		go func(beforePlain string) {
 			Rx := []byte(beforePlain)
@@ -50,16 +50,29 @@ func CreateTable(H HashFunc, R ReductionFunc, numOfChains int, chainLength int, 
 				Hx = H(Rx)
 				Rx = R(j, Hx)
 			}
-			mutex.Lock()
-			if !isExist[string(Rx)] {
-				isExist[string(Rx)] = true
-				fmt.Fprintf(file, "	\"%s\": \"%s\",\n", string(Rx), beforePlain)
+			chainChan <- &Chain{
+				Length: chainLength,
+				Head:   beforePlain,
+				Tail:   string(Rx),
 			}
-			mutex.Unlock()
 		}(plain)
 		plain = nextPermutation(plain)
 	}
-	return file, nil
+
+	close(chainChan)
+	encoder := gob.NewEncoder(file)
+	if err := encoder.Encode(rainbowTable); err != nil {
+		return err
+	}
+	return nil
+}
+
+func AddTable(chainChan <-chan *Chain) {
+	for chain := range chainChan {
+		if _, ok := rainbowTable[chain.Tail]; !ok {
+			rainbowTable[chain.Tail] = *chain
+		}
+	}
 }
 
 func Hash(message []byte) []byte {
@@ -70,18 +83,28 @@ func Hash(message []byte) []byte {
 
 func Reduction(times int, digest []byte) []byte {
 	seed := uint64(0)
-	for i, v := range digest {
-		seed |= uint64(v) << uint64(i*8)
+	for i := 0; i < 8; i++ {
+		seed |= uint64(digest[i%len(digest)]) << uint64(i*8)
 	}
 	seed += uint64(times)
+	seed = xorshift(seed)
+	random := uint64(0)
 
 	str := make([]byte, MessageLength)
 	messageBytes := []byte(MessageChars)
 
 	for i := 0; i < MessageLength; i++ {
-		index := seed & 0x3f
+		if random == 0 {
+			random = seed
+		}
+		index := random & 0x3f
 		str[i] = messageBytes[int(index)]
-		seed = seed >> 6
+		random = random >> 6
 	}
 	return str
+}
+
+func xorshift(x uint64) uint64 {
+	x = x ^ (x << 7)
+	return x ^ (x >> 9)
 }
