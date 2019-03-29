@@ -1,9 +1,9 @@
 package rainbow
 
 import (
-	"crypto/md5"
+	"crypto/sha256"
 	"encoding/gob"
-	"go/token"
+	"log"
 	"os"
 	"strings"
 )
@@ -38,11 +38,15 @@ func CreateTable(H HashFunc, R ReductionFunc, numOfChains int, chainLength int, 
 	if err != nil {
 		return err
 	}
+	defer file.Close()
 
-	plain := strings.Repeat(MessageChars[0:1], MessageLength)
-	chainChan := make(chan *Chain, 4096)
-	go AddTable(H, R, chainChan)
-	for i := 0; i < int(numOfChains); i++ {
+	minPlain := strings.Repeat(MessageChars[0:1], MessageLength)
+	plain := minPlain
+	chainChan := make(chan *Chain, numOfChains)
+	isDoneChan := make(chan bool)
+	isDone := false
+	go AddTable(chainChan, isDoneChan, numOfChains)
+	for {
 		go func(beforePlain string) {
 			Rx := []byte(beforePlain)
 			var Hx []byte
@@ -56,10 +60,16 @@ func CreateTable(H HashFunc, R ReductionFunc, numOfChains int, chainLength int, 
 				Tail:   string(Rx),
 			}
 		}(plain)
+		select {
+		case isDone = <-isDoneChan:
+		default:
+		}
 		plain = nextPermutation(plain)
+		if isDone || plain == minPlain {
+			break
+		}
 	}
 
-	close(chainChan)
 	encoder := gob.NewEncoder(file)
 	if err := encoder.Encode(rainbowTable); err != nil {
 		return err
@@ -67,16 +77,24 @@ func CreateTable(H HashFunc, R ReductionFunc, numOfChains int, chainLength int, 
 	return nil
 }
 
-func AddTable(chainChan <-chan *Chain) {
+func AddTable(chainChan <-chan *Chain, isDoneChan chan<- bool, numOfChains int) {
 	for chain := range chainChan {
 		if _, ok := rainbowTable[chain.Tail]; !ok {
 			rainbowTable[chain.Tail] = *chain
+		}
+		rainbowTableLength := len(rainbowTable)
+		if rainbowTableLength > numOfChains {
+			isDoneChan <- true
+			break
+		}
+		if rainbowTableLength%1000 == 0 {
+			log.Println(rainbowTableLength, "まで完了")
 		}
 	}
 }
 
 func Hash(message []byte) []byte {
-	digest := md5.New()
+	digest := sha256.New()
 	digest.Write(message)
 	return digest.Sum(nil)
 }
@@ -87,8 +105,7 @@ func Reduction(times int, digest []byte) []byte {
 		seed |= uint64(digest[i%len(digest)]) << uint64(i*8)
 	}
 	seed += uint64(times)
-	seed = xorshift(seed)
-	random := uint64(0)
+	random := seed
 
 	str := make([]byte, MessageLength)
 	messageBytes := []byte(MessageChars)
@@ -102,9 +119,4 @@ func Reduction(times int, digest []byte) []byte {
 		random = random >> 6
 	}
 	return str
-}
-
-func xorshift(x uint64) uint64 {
-	x = x ^ (x << 7)
-	return x ^ (x >> 9)
 }
