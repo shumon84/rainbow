@@ -14,16 +14,18 @@ const (
 	LowerChars  = "abcdefghijklmnopqrstuvwxyz"
 )
 
-// 平文に使える文字種と文字数の設定
+// レインボーテーブルの設定
 const (
-	MessageChars  = "-" + NumberChars + UpperChars + "_" + LowerChars // 記号2文字 + 英数字 = 64文字(2^6)
+	NumOfChains   = 20000
+	ChainLength   = 5000
 	MessageLength = 4
+	MessageChars  = "-" + NumberChars + UpperChars + "_" + LowerChars // 記号2文字 + 英数字 = 64文字(2^6)
 )
 
 type HashFunc func([]byte) []byte
 type ReductionFunc func(int, []byte) []byte
 
-func CreateTable(H HashFunc, R ReductionFunc, numOfChains int, chainLength int, fileName string){
+func CreateTable(H HashFunc, R ReductionFunc, fileName string){
 	// 初期文字列を生成
 	minPlain := strings.Repeat(MessageChars[0:1], MessageLength)
 	plain := minPlain
@@ -32,15 +34,15 @@ func CreateTable(H HashFunc, R ReductionFunc, numOfChains int, chainLength int, 
 	// ゴルーチンを起動させておく
 	chainChan := make(chan string)
 	isDoneChan := make(chan bool)
-	go WriteTable(fileName,numOfChains,chainChan,isDoneChan)
+	go WriteTable(fileName, NumOfChains,chainChan,isDoneChan)
 
 	// レインボーテーブルの生成
-	for i:=0;i<numOfChains;i++ {
+	for i:=0;i< NumOfChains;i++ {
 		// チェインを生成するゴルーチンを起動
 		go func(beforePlain string) {
 			Rx := []byte(beforePlain)
 			var Hx []byte
-			for j := 0; j < int(chainLength); j++ {
+			for j := 0; j < int(ChainLength); j++ {
 				Hx = H(Rx)
 				Rx = R(j, Hx)
 			}
