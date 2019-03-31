@@ -19,9 +19,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fileName := fmt.Sprintf("rainbow_table_%d_%d.gob", t, m)
-	if err := rainbow.CreateTable(rainbow.Hash, rainbow.Reduction, t, m, fileName); err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println(fileName + "にレインボーテーブルを書き込みました")
+	fileName := fmt.Sprintf("rainbow_table_%d_%d.txt", t, m)
+	fmt.Println(fileName + "にレインボーテーブルを書き込みます")
+	rainbow.CreateTable(rainbow.Hash, rainbow.Reduction, t, m, fileName)
 }

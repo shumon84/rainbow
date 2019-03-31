@@ -2,8 +2,7 @@ package rainbow
 
 import (
 	"crypto/sha256"
-	"encoding/gob"
-	"log"
+	"fmt"
 	"os"
 	"strings"
 )
@@ -11,42 +10,33 @@ import (
 // 文字種のエイリアス
 const (
 	NumberChars = "0123456789"
-	LowerChars  = "abcdefghijklmnopqrstuvwxyz"
 	UpperChars  = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	LowerChars  = "abcdefghijklmnopqrstuvwxyz"
 )
 
 // 平文に使える文字種と文字数の設定
 const (
-	MessageChars  = NumberChars + LowerChars + UpperChars + "-_" // 英数字 + 記号2文字 = 64文字(2^6)
-	MessageLength = 6
+	MessageChars  = "-" + NumberChars + UpperChars + "_" + LowerChars // 記号2文字 + 英数字 = 64文字(2^6)
+	MessageLength = 4
 )
 
 type HashFunc func([]byte) []byte
 type ReductionFunc func(int, []byte) []byte
 
-// レインボーテーブルのチェーン
-type Chain struct {
-	Length int
-	Head   string
-	Tail   string
-}
-
-var rainbowTable = map[string]Chain{}
-
-func CreateTable(H HashFunc, R ReductionFunc, numOfChains int, chainLength int, fileName string) error {
-	file, err := os.OpenFile(fileName, os.O_CREATE|os.O_WRONLY, 0755)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
+func CreateTable(H HashFunc, R ReductionFunc, numOfChains int, chainLength int, fileName string){
+	// 初期文字列を生成
 	minPlain := strings.Repeat(MessageChars[0:1], MessageLength)
 	plain := minPlain
-	chainChan := make(chan *Chain, numOfChains)
+
+	// ファイルにレインボーテーブルを書き込むのに使うチャネルを生成し
+	// ゴルーチンを起動させておく
+	chainChan := make(chan string)
 	isDoneChan := make(chan bool)
-	isDone := false
-	go AddTable(chainChan, isDoneChan, numOfChains)
-	for {
+	go WriteTable(fileName,numOfChains,chainChan,isDoneChan)
+
+	// レインボーテーブルの生成
+	for i:=0;i<numOfChains;i++ {
+		// チェインを生成するゴルーチンを起動
 		go func(beforePlain string) {
 			Rx := []byte(beforePlain)
 			var Hx []byte
@@ -54,42 +44,33 @@ func CreateTable(H HashFunc, R ReductionFunc, numOfChains int, chainLength int, 
 				Hx = H(Rx)
 				Rx = R(j, Hx)
 			}
-			chainChan <- &Chain{
-				Length: chainLength,
-				Head:   beforePlain,
-				Tail:   string(Rx),
-			}
+			chainChan<-fmt.Sprintln(string(Rx),beforePlain)
 		}(plain)
-		select {
-		case isDone = <-isDoneChan:
-		default:
-		}
+
+		// 次のHeadになる文字列を生成する
+		// すでにHeadが取りうる全ての文字列を使用している場合は終了
 		plain = nextPermutation(plain)
-		if isDone || plain == minPlain {
+		if plain == minPlain {
 			break
 		}
 	}
 
-	encoder := gob.NewEncoder(file)
-	if err := encoder.Encode(rainbowTable); err != nil {
-		return err
-	}
-	return nil
+	// WriteTableの終了を待ってチャネルをcloseする
+	<-isDoneChan
+	close(chainChan)
+	close(isDoneChan)
 }
 
-func AddTable(chainChan <-chan *Chain, isDoneChan chan<- bool, numOfChains int) {
-	for chain := range chainChan {
-		if _, ok := rainbowTable[chain.Tail]; !ok {
-			rainbowTable[chain.Tail] = *chain
-		}
-		rainbowTableLength := len(rainbowTable)
-		if rainbowTableLength > numOfChains {
-			isDoneChan <- true
-			break
-		}
-		if rainbowTableLength%1000 == 0 {
-			log.Println(rainbowTableLength, "まで完了")
-		}
+func WriteTable(fileName string,numOfLines int,lineChan <- chan string,isDoneChan chan<- bool){
+	defer func(){isDoneChan<-true}()
+	file, err := os.OpenFile(fileName, os.O_CREATE|os.O_WRONLY, 0755)
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+
+	for i := 0;i<numOfLines;i++{
+		fmt.Fprint(file,<-lineChan)
 	}
 }
 

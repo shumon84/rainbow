@@ -58,13 +58,13 @@ func (plain *plain) Text() string {
 
 // MessageCharsに含まれる文字だけを使った文字列のうち、
 // strの次に辞書順最小の文字列を返す
-func (plain *plain) nextPermutation() {
+func (plain *plain) NextPermutation() {
 	reverseText := reverseString(plain.text)
 	nextReverseText := next(reverseText, 0)
 	plain.text = reverseString(nextReverseText)
 }
 
-func (plain *plain) reverse() {
+func (plain *plain) Reverse() {
 	revStr := make([]rune, len(plain.text))
 	for i, v := range plain.text {
 		revStr[len(revStr)+^i] = v
