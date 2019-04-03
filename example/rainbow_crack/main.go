@@ -8,7 +8,7 @@ import (
 	"os"
 )
 
-func main(){
+func main() {
 	file, err := os.Open(os.Args[1])
 	if err != nil {
 		log.Fatal(err)
