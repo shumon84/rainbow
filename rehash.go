@@ -11,7 +11,9 @@ var (
 	RainbowTable = map[string]string{}
 )
 
-func ReadRainbowTable(rainbowTableReader io.Reader) error{
+const NotFound = "Not Found"
+
+func ReadRainbowTable(rainbowTableReader io.Reader) error {
 	// レインボーテーブルの読み込み
 	scanner := bufio.NewScanner(rainbowTableReader)
 	for scanner.Scan() {
@@ -75,7 +77,7 @@ func ReHash(hash []byte, H HashFunc, R ReductionFunc) []byte {
 			egCount += n
 		default:
 			if sgCount == ChainLength && egCount == ChainLength {
-				return []byte("Not Found")
+				return []byte(NotFound)
 			}
 		}
 	}
