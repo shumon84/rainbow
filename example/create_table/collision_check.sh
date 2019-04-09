@@ -5,7 +5,7 @@ MESSAGE_CHARS_LENGTH=64
 MESSAGE_LENGTH=4
 
 go build -o create_table &&
-./create_table $NUM_OF_CHAINS $CHAIN_LENGTH $MESSAGE_LENGTH &&
+./create_table &&
 
 LINE=$(cat rainbow_table_"$MESSAGE_LENGTH"_"$NUM_OF_CHAINS"_"$CHAIN_LENGTH".txt | cut -d " " -f 1 | sort | uniq | wc -l)
 
