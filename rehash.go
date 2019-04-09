@@ -25,7 +25,7 @@ func ReadRainbowTable(rainbowTableReader io.Reader) error{
 	return nil
 }
 
-func ReHash(hash []byte,H HashFunc, R ReductionFunc) []byte {
+func ReHash(hash []byte, H HashFunc, R ReductionFunc) []byte {
 	// チェーンの復元
 	tailChan := make(chan string, 4096)
 	for i := 0; i < ChainLength; i++ {

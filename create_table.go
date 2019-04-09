@@ -25,7 +25,7 @@ const (
 type HashFunc func([]byte) []byte
 type ReductionFunc func(int, []byte) []byte
 
-func CreateTable(H HashFunc, R ReductionFunc, fileName string){
+func CreateTable(H HashFunc, R ReductionFunc, fileName string) {
 	// 初期文字列を生成
 	minPlain := strings.Repeat(MessageChars[0:1], MessageLength)
 	plain := minPlain
@@ -34,10 +34,10 @@ func CreateTable(H HashFunc, R ReductionFunc, fileName string){
 	// ゴルーチンを起動させておく
 	chainChan := make(chan string)
 	isDoneChan := make(chan bool)
-	go WriteTable(fileName, NumOfChains,chainChan,isDoneChan)
+	go WriteTable(fileName, NumOfChains, chainChan, isDoneChan)
 
 	// レインボーテーブルの生成
-	for i:=0;i< NumOfChains;i++ {
+	for i := 0; i < NumOfChains; i++ {
 		// チェインを生成するゴルーチンを起動
 		go func(beforePlain string) {
 			Rx := []byte(beforePlain)
@@ -46,7 +46,7 @@ func CreateTable(H HashFunc, R ReductionFunc, fileName string){
 				Hx = H(Rx)
 				Rx = R(j, Hx)
 			}
-			chainChan<-fmt.Sprintln(string(Rx),beforePlain)
+			chainChan <- fmt.Sprintln(string(Rx), beforePlain)
 		}(plain)
 
 		// 次のHeadになる文字列を生成する
@@ -63,16 +63,16 @@ func CreateTable(H HashFunc, R ReductionFunc, fileName string){
 	close(isDoneChan)
 }
 
-func WriteTable(fileName string,numOfLines int,lineChan <- chan string,isDoneChan chan<- bool){
-	defer func(){isDoneChan<-true}()
+func WriteTable(fileName string, numOfLines int, lineChan <-chan string, isDoneChan chan<- bool) {
+	defer func() { isDoneChan <- true }()
 	file, err := os.OpenFile(fileName, os.O_CREATE|os.O_WRONLY, 0755)
 	if err != nil {
 		panic(err)
 	}
 	defer file.Close()
 
-	for i := 0;i<numOfLines;i++{
-		fmt.Fprint(file,<-lineChan)
+	for i := 0; i < numOfLines; i++ {
+		fmt.Fprint(file, <-lineChan)
 	}
 }
 
