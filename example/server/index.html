@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>逆ハッシュ関数ツール</title>
+</head>
+<body>
+<h1>逆ハッシュ関数ツール</h1>
+<p>「ハッシュ化したい平文」にテキストを入力するとsha256でハッシュ化されます</p>
+<p>「平文化したいハッシュ値」に16進数表記でハッシュ値を入力すると元の平文を複合することができます</p>
+<p>ただし、平文化できるのは以下の条件に当てはまるハッシュ値のみです。</p>
+<ul>
+    <li>平文が半角英数字に-と_を加えた64種類の文字のみからなる</li>
+    <li>平文が4文字である</li>
+    <li>sha256でハッシュ化されたものである</li>
+</ul>
+<p>平文化に失敗したら、他のハッシュ値で試してみてください。</p>
+<p>大体81%ぐらいのハッシュ値は平文化できます。</p>
+<form method="POST" action="/hash">
+    <p>ハッシュ化したい平文　→ <input type="text" name="plain"><button>送信</button></p>
+</form>
+<form method="POST" action="/rehash">
+    <p>平文化したいハッシュ値→ <input type="text" name="hash"><button>送信</button></p>
+</form>
+<p>{{ . }}</p>
+<p>※ここでいう「平文」とは「ハッシュ化される前の文字列」のことを指します。正しい意味よりニュアンスを大事にしてください</p>
+<p><a href="https://github.com/shumon84/rainbow">リポジトリ</a></p>
+</body>
+</html>
