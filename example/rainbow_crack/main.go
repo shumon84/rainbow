@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/hex"
 	"fmt"
-	"github.com/shumon84/rainbow-table"
+	"github.com/shumon84/rainbow"
 	"log"
 	"os"
 )
